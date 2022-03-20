@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
+from torch import Tensor
+from typing import List, Tuple
 
 
-def compute_iou(box1, box2):
+def compute_iou(box1: Tensor, box2: Tensor) -> Tensor:
     """Compute the intersection over union of two set of boxes, each box is [x1,y1,x2,y2].
     Args:
       box1: (tensor) bounding boxes, sized [N,4].
@@ -16,13 +18,17 @@ def compute_iou(box1, box2):
     M = box2.size(0)
 
     lt = torch.max(
-        box1[:, :2].unsqueeze(1).expand(N, M, 2),  # [N,2] -> [N,1,2] -> [N,M,2]
-        box2[:, :2].unsqueeze(0).expand(N, M, 2),  # [M,2] -> [1,M,2] -> [N,M,2]
+        # [N,2] -> [N,1,2] -> [N,M,2]
+        box1[:, :2].unsqueeze(1).expand(N, M, 2),
+        # [M,2] -> [1,M,2] -> [N,M,2]
+        box2[:, :2].unsqueeze(0).expand(N, M, 2),
     )
 
     rb = torch.min(
-        box1[:, 2:].unsqueeze(1).expand(N, M, 2),  # [N,2] -> [N,1,2] -> [N,M,2]
-        box2[:, 2:].unsqueeze(0).expand(N, M, 2),  # [M,2] -> [1,M,2] -> [N,M,2]
+        # [N,2] -> [N,1,2] -> [N,M,2]
+        box1[:, 2:].unsqueeze(1).expand(N, M, 2),
+        # [M,2] -> [1,M,2] -> [N,M,2]
+        box2[:, 2:].unsqueeze(0).expand(N, M, 2),
     )
 
     wh = rb - lt  # [N,M,2]
@@ -46,7 +52,7 @@ class YoloLoss(nn.Module):
         self.l_coord = l_coord
         self.l_noobj = l_noobj
 
-    def xywh2xyxy(self, boxes):
+    def xywh2xyxy(self, boxes: Tensor) -> Tensor:
         """
         Parameters:
         boxes: (N,4) representing by x,y,w,h
@@ -60,14 +66,16 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
+        boxes = torch.tensor([boxes[:, 0]/self.S - boxes[:, 2] / 2, boxes[:, 1]/self.S - boxes[:, 3] / 2,
+                              boxes[:, 0]/self.S + boxes[:, 2] / 2, boxes[:, 1]/self.S + boxes[:, 3] / 2])
 
         return boxes
 
-    def find_best_iou_boxes(self, pred_box_list, box_target):
+    def find_best_iou_boxes(self, pred_box_list: Tensor, box_target: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Parameters:
-        box_pred_list : [(tensor) size (-1, 4) ...]
-        box_target : (tensor)  size (-1, 5)
+        box_pred_list : [(tensor) size (-1, 4) ...]   # maybe parameters wrong? (-1, 5)
+        box_target : (tensor)  size (-1, 5)           # maybe parameters wrong? (-1, 4)
 
         Returns:
         best_iou: (tensor) size (-1, 1)
@@ -83,9 +91,16 @@ class YoloLoss(nn.Module):
 
         ### CODE ###
         # Your code here
-        return best_ious, best_boxes
 
-    def get_class_prediction_loss(self, classes_pred, classes_target, has_object_map):
+        box_pred = torch.tensor(pred_box_list).moveaxis(0, 2)
+        ious = Tensor(size=(box_target.size(0), self.B))
+
+        for i in range(self.B):
+            ious[:, i] = torch.diagonal(
+                compute_iou(box_pred[:, :, i], box_target))
+        return torch.max(ious, dim=1), box_pred[range(box_target.size(0)):, :, torch.argmax(ious, dim=1)]
+
+    def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
         """
         Parameters:
         classes_pred : (tensor) size (batch_size, S, S, 20)
@@ -94,12 +109,19 @@ class YoloLoss(nn.Module):
 
         Returns:
         class_loss : scalar
+
+
+        This is the probability prediction loss
         """
         ### CODE ###
         # Your code here
+
+        has_object_map.unsqueeze_(3)
+        loss = torch.sum(has_object_map * (classes_pred - classes_target) ** 2)
+
         return loss
 
-    def get_no_object_loss(self, pred_boxes_list, has_object_map):
+    def get_no_object_loss(self, pred_boxes_list: List[Tensor], has_object_map: Tensor):
         """
         Parameters:
         pred_boxes_list: (list) [(tensor) size (N, S, S, 5)  for B pred_boxes]
@@ -115,10 +137,15 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
-
+        pred_boxes_list = [(1-has_object_map) * pred_boxes_list[x]
+                           [:, :, :, 4] for x in range(self.B)]
+        mmax = pred_boxes_list[0]
+        for i in range(1, self.B):
+            mmax = torch.maximum(mmax, pred_boxes_list[i])
+        loss = torch.sum(mmax ** 2)
         return loss
 
-    def get_contain_conf_loss(self, box_pred_conf, box_target_conf):
+    def get_contain_conf_loss(self, box_pred_conf: Tensor, box_target_conf: Tensor):
         """
         Parameters:
         box_pred_conf : (tensor) size (-1,1)
@@ -131,11 +158,14 @@ class YoloLoss(nn.Module):
         The box_target_conf should be treated as ground truth, i.e., no gradient
 
         """
-        ### CODE
+        # CODE
         # your code here
+
+        loss = torch.sum((box_pred_conf - box_target_conf) ** 2)
+
         return loss
 
-    def get_regression_loss(self, box_pred_response, box_target_response):
+    def get_regression_loss(self, box_pred_response: Tensor, box_target_response: Tensor):
         """
         Parameters:
         box_pred_response : (tensor) size (-1, 4)
@@ -146,12 +176,17 @@ class YoloLoss(nn.Module):
         Returns:
         reg_loss : scalar
 
+        This is the box position, size regressor
         """
-        ### CODE
+        # CODE
         # your code here
+
+        reg_loss = torch.sum((box_pred_response[:, 0:2] - box_target_response[:, 0:2]) ** 2) + torch.sum(
+            (box_target_response[:, 2:4] ** 0.5 - box_pred_response[:, 2:4] ** 0.5) ** 2)
+
         return reg_loss
 
-    def forward(self, pred_tensor, target_boxes, target_cls, has_object_map):
+    def forward(self, pred_tensor: Tensor, target_boxes: Tensor, target_cls: Tensor, has_object_map: Tensor):
         """
         pred_tensor: (tensor) size(N,S,S,Bx5+20=30) N:batch_size
                       where B - number of bounding boxes this grid cell is a part of = 2
@@ -173,28 +208,52 @@ class YoloLoss(nn.Module):
         # -- pred_boxes_list: a list containing all bbox prediction (list) [(tensor) size (N, S, S, 5)  for B pred_boxes]
         # -- pred_cls (containing all classification prediction)
 
+        pred_boxes_list: List[Tensor] = [
+            pred_tensor[:, :, :, 5*x:5*(x+1)] for x in self.B]
+        pred_cls: Tensor = pred_tensor[:, :, :, 5*self.B:]
+
         # compcute classification loss
+        cls_loss = self.get_class_prediction_loss(
+            pred_cls, target_cls, has_object_map)
 
         # compute no-object loss
+        no_obj_loss = self.get_no_object_loss(pred_boxes_list, has_object_map)
 
         # Re-shape boxes in pred_boxes_list and target_boxes to meet the following desires
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
+        pred_boxes_list: List[Tensor] = [torch.masked_select(pred_boxes_list[x].flatten(
+            0, 2), has_object_map.flatten()).reshape(-1, 5) for x in range(self.B)]
+        target_boxes: Tensor = torch.masked_select(target_boxes.flatten(
+            0, 2), has_object_map.flatten()).reshape(-1, 4)
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
-
+        best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
+            pred_boxes_list, target_boxes)
         # compute regression loss between the found best bbox and GT bbox for all the cell containing objects
-
+        reg_loss = self.get_regression_loss(
+            best_pred_bbox[:, :4], target_boxes)
         # compute contain_object_loss
-
+        cont_obj_loss = self.get_contain_conf_loss(
+            best_pred_bbox[:, 4], best_pred_ious)
         # compute final loss
+        total_loss = self.l_coord * reg_loss + self.l_noobj * \
+            no_obj_loss + cont_obj_loss + cls_loss
 
+
+        # get batch mean loss
+        reg_loss /= N
+        no_obj_loss /= N
+        cont_obj_loss /= N
+        cls_loss /= N
+        total_loss /= N
+        
         # construct return loss_dict
         loss_dict = dict(
-            total_loss=...,
-            reg_loss=...,
-            containing_obj_loss=...,
-            no_obj_loss=...,
-            cls_loss=...,
+            total_loss=total_loss,
+            reg_loss=reg_loss,
+            containing_obj_loss=cont_obj_loss,
+            no_obj_loss=no_obj_loss,
+            cls_loss=cls_loss,
         )
         return loss_dict
