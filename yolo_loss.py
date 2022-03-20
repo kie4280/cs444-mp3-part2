@@ -209,7 +209,7 @@ class YoloLoss(nn.Module):
         # -- pred_cls (containing all classification prediction)
 
         pred_boxes_list: List[Tensor] = [
-            pred_tensor[:, :, :, 5*x:5*(x+1)] for x in self.B]
+            pred_tensor[:, :, :, 5*x:5*(x+1)] for x in range(self.B)]
         pred_cls: Tensor = pred_tensor[:, :, :, 5*self.B:]
 
         # compcute classification loss
