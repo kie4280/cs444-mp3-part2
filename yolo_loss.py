@@ -137,7 +137,7 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
-        pred_boxes_list = [(1-has_object_map) * pred_boxes_list[x]
+        pred_boxes_list = [(~has_object_map) * pred_boxes_list[x]
                            [:, :, :, 4] for x in range(self.B)]
         mmax = pred_boxes_list[0]
         for i in range(1, self.B):
