@@ -92,13 +92,14 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
 
-        box_pred = torch.tensor(pred_box_list).moveaxis(0, 2)
+        box_pred = torch.stack(pred_box_list, 2)
         ious = Tensor(size=(box_target.size(0), self.B))
-
+        print(box_pred.size())
+        print(box_target.size())
         for i in range(self.B):
             ious[:, i] = torch.diagonal(
-                compute_iou(box_pred[:, :, i], box_target))
-        return torch.max(ious, dim=1), box_pred[range(box_target.size(0)):, :, torch.argmax(ious, dim=1)]
+                compute_iou(box_pred[:, :4, i], box_target))
+        return torch.max(ious, dim=1), torch.gather(box_pred, 2, torch.argmax(ious, dim=1).unsqueeze(2))
 
     def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
         """
@@ -138,7 +139,7 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
         pred_boxes_list = [(~has_object_map) * pred_boxes_list[x]
-                           [:, :, :, 4] for x in range(self.B)]
+                           [:, :, :, 4].unsqueeze(3) for x in range(self.B)]
         mmax = pred_boxes_list[0]
         for i in range(1, self.B):
             mmax = torch.maximum(mmax, pred_boxes_list[i])
@@ -222,14 +223,14 @@ class YoloLoss(nn.Module):
         # Re-shape boxes in pred_boxes_list and target_boxes to meet the following desires
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
-        pred_boxes_list: List[Tensor] = [torch.masked_select(pred_boxes_list[x].flatten(
-            0, 2), has_object_map.flatten()).reshape(-1, 5) for x in range(self.B)]
+        pred_boxes_: List[Tensor] = [torch.masked_select(pred_boxes_list[x].flatten(
+            0, 2), has_object_map.flatten().unsqueeze(1)).reshape(-1, 5) for x in range(self.B)]
         target_boxes: Tensor = torch.masked_select(target_boxes.flatten(
-            0, 2), has_object_map.flatten()).reshape(-1, 4)
+            0, 2), has_object_map.flatten().unsqueeze(1)).reshape(-1, 4)
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
         best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
-            pred_boxes_list, target_boxes)
+            pred_boxes_, target_boxes)
         # compute regression loss between the found best bbox and GT bbox for all the cell containing objects
         reg_loss = self.get_regression_loss(
             best_pred_bbox[:, :4], target_boxes)
