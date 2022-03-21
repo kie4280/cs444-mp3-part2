@@ -93,13 +93,13 @@ class YoloLoss(nn.Module):
         # Your code here
 
         box_pred = torch.stack(pred_box_list, 2)
-        ious = Tensor(size=(box_target.size(0), self.B))
-        print(box_pred.size())
-        print(box_target.size())
+        ious = Tensor(size=(box_target.size(0), self.B)).cuda()
         for i in range(self.B):
             ious[:, i] = torch.diagonal(
                 compute_iou(box_pred[:, :4, i], box_target))
-        return torch.max(ious, dim=1), torch.gather(box_pred, 2, torch.argmax(ious, dim=1).unsqueeze(2))
+        best_iou, argmax = torch.max(ious, dim=1)
+        best_bbox = torch.gather(box_pred, 2, argmax[:,None,None].expand(-1,5,1))
+        return best_iou, best_bbox.unsqueeze(2)
 
     def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
         """
@@ -181,7 +181,8 @@ class YoloLoss(nn.Module):
         """
         # CODE
         # your code here
-
+        # print(box_pred_response[:, 0:2].size())
+        # print(box_target_response[:, 2:4].size())
         reg_loss = torch.sum((box_pred_response[:, 0:2] - box_target_response[:, 0:2]) ** 2) + torch.sum(
             (box_target_response[:, 2:4] ** 0.5 - box_pred_response[:, 2:4] ** 0.5) ** 2)
 
@@ -231,6 +232,7 @@ class YoloLoss(nn.Module):
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
         best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
             pred_boxes_, target_boxes)
+
         # compute regression loss between the found best bbox and GT bbox for all the cell containing objects
         reg_loss = self.get_regression_loss(
             best_pred_bbox[:, :4], target_boxes)
