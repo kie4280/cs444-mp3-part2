@@ -66,8 +66,8 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
-        boxes = torch.tensor([boxes[:, 0]/self.S - boxes[:, 2] / 2, boxes[:, 1]/self.S - boxes[:, 3] / 2,
-                              boxes[:, 0]/self.S + boxes[:, 2] / 2, boxes[:, 1]/self.S + boxes[:, 3] / 2])
+        boxes = torch.stack([boxes[:, 0]/self.S - boxes[:, 2] / 2, boxes[:, 1]/self.S - boxes[:, 3] / 2,
+                              boxes[:, 0]/self.S + boxes[:, 2] / 2, boxes[:, 1]/self.S + boxes[:, 3] / 2], dim=1)
 
         return boxes
 
@@ -96,7 +96,7 @@ class YoloLoss(nn.Module):
         ious = Tensor(size=(box_target.size(0), self.B)).cuda()
         for i in range(self.B):
             ious[:, i] = torch.diagonal(
-                compute_iou(box_pred[:, :4, i], box_target))
+                compute_iou(self.xywh2xyxy(box_pred[:, :4, i]), self.xywh2xyxy(box_target)))
         best_iou, argmax = torch.max(ious, dim=1)
         best_bbox = torch.gather(box_pred, 2, argmax[:,None,None].expand(-1,5,1))
         return best_iou, best_bbox.unsqueeze(2)
