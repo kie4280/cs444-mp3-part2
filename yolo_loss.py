@@ -147,7 +147,7 @@ class YoloLoss(nn.Module):
         for i in range(1, self.B):
             mmax = torch.maximum(mmax, pred_boxes_list[i])
         loss = torch.sum(mmax ** 2)
-        return loss
+        return 0
 
     def get_contain_conf_loss(self, box_pred_conf: Tensor, box_target_conf: Tensor):
         """
@@ -187,7 +187,7 @@ class YoloLoss(nn.Module):
         # print(box_pred_response[:, 0:2].size())
         # print(box_target_response[:, 2:4].size())
         reg_loss = torch.sum((box_pred_response[:, 0:2] - box_target_response[:, 0:2]) ** 2) + torch.sum(
-            (box_target_response[:, 2:4] ** 0.5 - box_pred_response[:, 2:4] ** 0.5) ** 2)
+            (box_pred_response[:, 2:4] ** 0.5 - box_target_response[:, 2:4] ** 0.5) ** 2)
 
         return reg_loss
 
