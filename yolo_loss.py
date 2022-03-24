@@ -67,15 +67,17 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
         boxes = torch.stack([boxes[:, 0]/self.S - boxes[:, 2] / 2, boxes[:, 1]/self.S - boxes[:, 3] / 2,
-                              boxes[:, 0]/self.S + boxes[:, 2] / 2, boxes[:, 1]/self.S + boxes[:, 3] / 2], dim=1)
+                             boxes[:, 0]/self.S + boxes[:, 2] / 2, boxes[:, 1]/self.S + boxes[:, 3] / 2], dim=1)
 
         return boxes
 
     def find_best_iou_boxes(self, pred_box_list: Tensor, box_target: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Parameters:
-        box_pred_list : [(tensor) size (-1, 4) ...]   # maybe parameters wrong? (-1, 5)
-        box_target : (tensor)  size (-1, 5)           # maybe parameters wrong? (-1, 4)
+        # maybe parameters wrong? (-1, 5)
+        box_pred_list : [(tensor) size (-1, 4) ...]
+        # maybe parameters wrong? (-1, 4)
+        box_target : (tensor)  size (-1, 5)
 
         Returns:
         best_iou: (tensor) size (-1, 1)
@@ -98,7 +100,8 @@ class YoloLoss(nn.Module):
             ious[:, i] = torch.diagonal(
                 compute_iou(self.xywh2xyxy(box_pred[:, :4, i]), self.xywh2xyxy(box_target)))
         best_iou, argmax = torch.max(ious, dim=1)
-        best_bbox = torch.gather(box_pred, 2, argmax[:,None,None].expand(-1,5,1))
+        best_bbox = torch.gather(
+            box_pred, 2, argmax[:, None, None].expand(-1, 5, 1))
         return best_iou, best_bbox.unsqueeze(2)
 
     def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
@@ -117,7 +120,8 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
 
-        loss = torch.sum(has_object_map.unsqueeze(3) * (classes_pred - classes_target) ** 2)
+        loss = torch.sum(has_object_map.unsqueeze(
+            3) * (classes_pred - classes_target) ** 2)
 
         return loss
 
@@ -223,10 +227,10 @@ class YoloLoss(nn.Module):
         # Re-shape boxes in pred_boxes_list and target_boxes to meet the following desires
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
-        pred_boxes_: List[Tensor] = [torch.masked_select(pred_boxes_list[x].flatten(
-            0, 2), has_object_map.flatten().unsqueeze(1)).reshape(-1, 5) for x in range(self.B)]
-        target_boxes: Tensor = torch.masked_select(target_boxes.flatten(
-            0, 2), has_object_map.flatten().unsqueeze(1)).reshape(-1, 4)
+        pred_boxes_: List[Tensor] = [pred_boxes_list[x][has_object_map.unsqueeze(
+            3).expand(-1, -1, -1, 5)].flatten().unsqueeze(1).reshape(-1, 5) for x in range(self.B)]
+        target_boxes: Tensor = target_boxes[has_object_map.unsqueeze(
+            3).expand((-1, -1, -1, 4))].flatten().unsqueeze(1).reshape(-1, 4)
 
         # print(target_boxes.size())
         # print(pred_boxes_.size())
@@ -245,14 +249,13 @@ class YoloLoss(nn.Module):
         total_loss = self.l_coord * reg_loss + self.l_noobj * \
             no_obj_loss + cont_obj_loss + cls_loss
 
-
         # get batch mean loss
         reg_loss /= N
         no_obj_loss /= N
         cont_obj_loss /= N
         cls_loss /= N
         total_loss /= N
-        
+
         # construct return loss_dict
         loss_dict = dict(
             total_loss=total_loss,
