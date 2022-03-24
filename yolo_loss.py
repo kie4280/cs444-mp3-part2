@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torch import FloatTensor, Tensor, tensor
+from torch import Tensor, tensor
 from typing import List, Tuple
 
 
@@ -141,13 +141,12 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
-        pred_boxes_list = [(~has_object_map) * pred_boxes_list[x]
+        pred_boxes_list = [pred_boxes_list[x][~has_object_map]
                            [:, :, :, 4] for x in range(self.B)]
-        mmax = pred_boxes_list[0]
-        for i in range(1, self.B):
-            mmax = torch.maximum(mmax, pred_boxes_list[i])
-        loss = torch.sum(mmax ** 2)
-        return tensor(0)
+        loss = 0.0
+        for i in range(self.B):
+            loss += torch.sum(pred_boxes_list[i] ** 2)
+        return loss
 
     def get_contain_conf_loss(self, box_pred_conf: Tensor, box_target_conf: Tensor):
         """
