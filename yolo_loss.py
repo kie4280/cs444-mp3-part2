@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torch import Tensor
+from torch import FloatTensor, Tensor, tensor
 from typing import List, Tuple
 
 
@@ -147,7 +147,7 @@ class YoloLoss(nn.Module):
         for i in range(1, self.B):
             mmax = torch.maximum(mmax, pred_boxes_list[i])
         loss = torch.sum(mmax ** 2)
-        return 0
+        return tensor(0)
 
     def get_contain_conf_loss(self, box_pred_conf: Tensor, box_target_conf: Tensor):
         """
