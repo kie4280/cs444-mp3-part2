@@ -48,7 +48,7 @@ def decoder(pred):
                     box[:2] = box[:2] * cell_size + xy  # return cxcy relative to image
                     box_xy = torch.FloatTensor(
                         box.size()
-                    )  # convert[cx,cy,w,h] to [x1,xy1,x2,y2]
+                    )  # convert[cx,cy,w,h] to [x1,y1,x2,y2]
                     box_xy[:2] = box[:2] - 0.5 * box[2:]
                     box_xy[2:] = box[:2] + 0.5 * box[2:]
                     max_prob, cls_index = torch.max(pred[i, j, 10:], 0)

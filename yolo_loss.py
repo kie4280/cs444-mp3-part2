@@ -117,8 +117,7 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
 
-        has_object_map.unsqueeze_(3)
-        loss = torch.sum(has_object_map * (classes_pred - classes_target) ** 2)
+        loss = torch.sum(has_object_map.unsqueeze(3) * (classes_pred - classes_target) ** 2)
 
         return loss
 
@@ -139,7 +138,7 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
         pred_boxes_list = [(~has_object_map) * pred_boxes_list[x]
-                           [:, :, :, 4].unsqueeze(3) for x in range(self.B)]
+                           [:, :, :, 4] for x in range(self.B)]
         mmax = pred_boxes_list[0]
         for i in range(1, self.B):
             mmax = torch.maximum(mmax, pred_boxes_list[i])
@@ -228,6 +227,9 @@ class YoloLoss(nn.Module):
             0, 2), has_object_map.flatten().unsqueeze(1)).reshape(-1, 5) for x in range(self.B)]
         target_boxes: Tensor = torch.masked_select(target_boxes.flatten(
             0, 2), has_object_map.flatten().unsqueeze(1)).reshape(-1, 4)
+
+        # print(target_boxes.size())
+        # print(pred_boxes_.size())
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
         best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
