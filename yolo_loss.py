@@ -141,8 +141,8 @@ class YoloLoss(nn.Module):
         """
         ### CODE ###
         # Your code here
-        pred_boxes_list = [pred_boxes_list[x][~has_object_map]
-                           [:, :, :, 4] for x in range(self.B)]
+        pred_boxes_list = [pred_boxes_list[x][:, :, :, 4][~has_object_map]
+                            for x in range(self.B)]
         loss = 0.0
         for i in range(self.B):
             loss += torch.sum(pred_boxes_list[i] ** 2)
