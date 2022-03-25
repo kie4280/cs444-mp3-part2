@@ -1,9 +1,7 @@
-from matplotlib.pyplot import box
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
-from torch import Tensor, tensor
+from torch import FloatTensor, Tensor, tensor
 from typing import List, Tuple
 
 
@@ -52,6 +50,8 @@ class YoloLoss(nn.Module):
         self.B = B
         self.l_coord = l_coord
         self.l_noobj = l_noobj
+        self.device = torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu")
 
     def xywh2xyxy(self, boxes: Tensor) -> Tensor:
         """
@@ -94,19 +94,19 @@ class YoloLoss(nn.Module):
         # Your code here
 
         box_pred = torch.stack(pred_box_list, 2)
-        ious = Tensor(size=(box_target.size(0), self.B)).cuda()
-        target = torch.zeros_like(box_target).cuda()
-        target[:, :2] = box_target[:, :2] - 0.5 * box_target[:, 2:]
-        target[:, 2:] = box_target[:, :2] + 0.5 * box_target[:, 2:]
+        ious = Tensor(size=(box_target.size(0), self.B), device=self.device)
         # print(target[0])
-        # print(box_pred[0])
+        # print("box pred:", box_pred)
         # print(box_target.size())
-        for i in range(self.B):
-            ious[:, i] = torch.diagonal(
-                compute_iou(self.xywh2xyxy(box_pred[:, :4, i]), target))
+        for i in range(self.B):            
+            d = compute_iou(self.xywh2xyxy(
+                box_pred[:, :4, i]), self.xywh2xyxy(box_target))
+            ious[:, i] = torch.diagonal(d)
+        print("ious:", ious)
         best_iou, argmax = torch.max(ious, dim=1)
         best_bbox = torch.gather(
             box_pred, 2, argmax[:, None, None].expand(-1, 5, 1))
+        # print(best_bbox)
         return best_iou, best_bbox.unsqueeze(2)
 
     def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
@@ -190,7 +190,7 @@ class YoloLoss(nn.Module):
         # your code here
         # print(box_pred_response[:, 0:2].size())
         # print(box_target_response[:, 2:4].size())
-        reg_loss = torch.sum((box_pred_response[:, 0:2] - box_target_response[:, 0:2]) ** 2) + torch.sum(
+        reg_loss = torch.sum((box_pred_response[:, 0:2]/self.S - box_target_response[:, 0:2]) ** 2) + torch.sum(
             (box_pred_response[:, 2:4] ** 0.5 - box_target_response[:, 2:4] ** 0.5) ** 2)
 
         return reg_loss
@@ -221,7 +221,7 @@ class YoloLoss(nn.Module):
             pred_tensor[:, :, :, 5*x:5*(x+1)] for x in range(self.B)]
         pred_cls: Tensor = pred_tensor[:, :, :, 5*self.B:]
 
-        # compcute classification loss
+        # compute classification loss
         cls_loss = self.get_class_prediction_loss(
             pred_cls, target_cls, has_object_map)
 
@@ -231,13 +231,14 @@ class YoloLoss(nn.Module):
         # Re-shape boxes in pred_boxes_list and target_boxes to meet the following desires
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
+        print(pred_boxes_list)
         pred_boxes_: List[Tensor] = [pred_boxes_list[x][has_object_map.unsqueeze(
             3).expand(-1, -1, -1, 5)].flatten().unsqueeze(1).reshape(-1, 5) for x in range(self.B)]
         target_boxes: Tensor = target_boxes[has_object_map.unsqueeze(
             3).expand((-1, -1, -1, 4))].flatten().unsqueeze(1).reshape(-1, 4)
 
         # print(target_boxes.size())
-        # print(pred_boxes_.size())
+        print(pred_boxes_)
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
         best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
@@ -269,3 +270,22 @@ class YoloLoss(nn.Module):
             cls_loss=cls_loss,
         )
         return loss_dict
+
+
+def test():
+    yl = YoloLoss(2, 2, 5, 0.5)
+    N = 200
+    torch.random.manual_seed(0)
+    pred_tensor = torch.rand((N, 2, 2, 30))
+    target_box = 0.5 * torch.ones((N, 2, 2, 4))
+    target_cls = torch.zeros((N, 2, 2, 20))
+    target_cls[:, :, :, 10] = 1
+    obj_map = torch.BoolTensor(size=(N, 2, 2))
+    obj_map[:, :, :] = False
+    obj_map[:, 0, 0] = True
+    # print(pred_tensor)
+    loss = yl(pred_tensor, target_box, target_cls, obj_map)
+    print(loss)
+
+
+# test()
