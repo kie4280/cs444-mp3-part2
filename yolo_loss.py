@@ -51,7 +51,7 @@ class YoloLoss(nn.Module):
         self.l_coord = l_coord
         self.l_noobj = l_noobj
         self.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu")
+            "cuda:0" if torch.cuda.is_available() else "cpu")
 
     def xywh2xyxy(self, boxes: Tensor) -> Tensor:
         """
@@ -94,7 +94,7 @@ class YoloLoss(nn.Module):
         # Your code here
 
         box_pred = torch.stack(pred_box_list, 2)
-        ious = Tensor(size=(box_target.size(0), self.B), device=self.device)
+        ious = FloatTensor(size=(box_target.size(0), self.B)).to(device=self.device)
         # print(target[0])
         # print("box pred:", box_pred)
         # print(box_target.size())
