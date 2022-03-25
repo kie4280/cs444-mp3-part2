@@ -1,3 +1,4 @@
+from matplotlib.pyplot import box
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -74,10 +75,8 @@ class YoloLoss(nn.Module):
     def find_best_iou_boxes(self, pred_box_list: Tensor, box_target: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Parameters:
-        # maybe parameters wrong? (-1, 5)
-        box_pred_list : [(tensor) size (-1, 4) ...]
-        # maybe parameters wrong? (-1, 4)
-        box_target : (tensor)  size (-1, 5)
+        box_pred_list : [(tensor) size (-1, 5) ...]
+        box_target : (tensor)  size (-1, 4)
 
         Returns:
         best_iou: (tensor) size (-1, 1)
@@ -96,9 +95,15 @@ class YoloLoss(nn.Module):
 
         box_pred = torch.stack(pred_box_list, 2)
         ious = Tensor(size=(box_target.size(0), self.B)).cuda()
+        target = torch.zeros_like(box_target).cuda()
+        target[:, :2] = box_target[:, :2] - 0.5 * box_target[:, 2:]
+        target[:, 2:] = box_target[:, :2] + 0.5 * box_target[:, 2:]
+        # print(target[0])
+        # print(box_pred[0])
+        # print(box_target.size())
         for i in range(self.B):
             ious[:, i] = torch.diagonal(
-                compute_iou(self.xywh2xyxy(box_pred[:, :4, i]), self.xywh2xyxy(box_target)))
+                compute_iou(self.xywh2xyxy(box_pred[:, :4, i]), target))
         best_iou, argmax = torch.max(ious, dim=1)
         best_bbox = torch.gather(
             box_pred, 2, argmax[:, None, None].expand(-1, 5, 1))
@@ -142,7 +147,7 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
         pred_boxes_list = [pred_boxes_list[x][:, :, :, 4][~has_object_map]
-                            for x in range(self.B)]
+                           for x in range(self.B)]
         loss = 0.0
         for i in range(self.B):
             loss += torch.sum(pred_boxes_list[i] ** 2)
