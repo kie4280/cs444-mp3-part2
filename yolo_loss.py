@@ -94,7 +94,7 @@ class YoloLoss(nn.Module):
         # Your code here
 
         box_pred = torch.stack(pred_box_list, 2)
-        ious = FloatTensor(size=(box_target.size(0), self.B)).to(device=self.device)
+        ious = torch.zeros(size=(box_target.size(0), self.B)).to(device=self.device)
         # print(target[0])
         # print("box pred:", box_pred)
         # print(box_target.size())
@@ -190,7 +190,7 @@ class YoloLoss(nn.Module):
         # your code here
         # print(box_pred_response[:, 0:2].size())
         # print(box_target_response[:, 2:4].size())
-        reg_loss = torch.sum((box_pred_response[:, 0:2]/self.S - box_target_response[:, 0:2]) ** 2) + torch.sum(
+        reg_loss = torch.sum((box_pred_response[:, 0:2] - box_target_response[:, 0:2]) ** 2) + torch.sum(
             (box_pred_response[:, 2:4] ** 0.5 - box_target_response[:, 2:4] ** 0.5) ** 2)
 
         return reg_loss
@@ -238,7 +238,6 @@ class YoloLoss(nn.Module):
             3).expand((-1, -1, -1, 4))].flatten().unsqueeze(1).reshape(-1, 4)
 
         # print(target_boxes.size())
-        # print(pred_boxes_)
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
         best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
@@ -274,9 +273,9 @@ class YoloLoss(nn.Module):
 
 def test():
     yl = YoloLoss(2, 2, 5, 0.5)
-    N = 200
+    N = 2
     torch.random.manual_seed(0)
-    pred_tensor = torch.rand((N, 2, 2, 30))
+    pred_tensor = torch.rand((N, 2, 2, 30), requires_grad=True)
     target_box = 0.5 * torch.ones((N, 2, 2, 4))
     target_cls = torch.zeros((N, 2, 2, 20))
     target_cls[:, :, :, 10] = 1
