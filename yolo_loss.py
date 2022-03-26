@@ -103,10 +103,12 @@ class YoloLoss(nn.Module):
                 box_pred[:, :4, i]), self.xywh2xyxy(box_target))
             ious[:, i] = torch.diagonal(d)
         # print("ious:", ious)
+        ious.detach_()
         best_iou, argmax = torch.max(ious, dim=1)
         best_bbox = torch.gather(
             box_pred, 2, argmax[:, None, None].expand(-1, 5, 1))
         # print(best_bbox)
+        # best_iou.detach_()
         return best_iou, best_bbox.unsqueeze(2)
 
     def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
@@ -232,17 +234,18 @@ class YoloLoss(nn.Module):
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
         # print(pred_boxes_list)
+
         pred_boxes_: List[Tensor] = [pred_boxes_list[x][has_object_map.unsqueeze(
             3).expand(-1, -1, -1, 5)].flatten().unsqueeze(1).reshape(-1, 5) for x in range(self.B)]
         target_boxes: Tensor = target_boxes[has_object_map.unsqueeze(
             3).expand((-1, -1, -1, 4))].flatten().unsqueeze(1).reshape(-1, 4)
 
-        # print(target_boxes.size())
+        # print(target_boxes)
 
         # find the best boxes among the 2 (or self.B) predicted boxes and the corresponding iou
         best_pred_ious, best_pred_bbox = self.find_best_iou_boxes(
             pred_boxes_, target_boxes)
-
+        # print("best iou", best_pred_ious)
         # compute regression loss between the found best bbox and GT bbox for all the cell containing objects
         reg_loss = self.get_regression_loss(
             best_pred_bbox[:, :4], target_boxes)
@@ -284,7 +287,8 @@ def test():
     obj_map[:, 0, 0] = True
     # print(pred_tensor)
     loss = yl(pred_tensor, target_box, target_cls, obj_map)
-    print(loss)
+    loss["total_loss"].backward()
+    print(pred_tensor.grad)
 
 
 # test()
