@@ -63,8 +63,8 @@ class YoloLoss(nn.Module):
         ### CODE ###
         # Your code here
         N = boxes.size()[0]
-        #boxes_temp = torch.zeros((N, 4))
-        boxes_temp = torch.clone(boxes)              # MAYBE THIS torch.clone IS A PROBLEM TOO #
+
+        boxes_temp = torch.clone(boxes)              
 
         boxes_temp[:,0] = boxes[:,0] / self.S - 0.5*boxes[:,2]
         boxes_temp[:,1] = boxes[:,1] / self.S - 0.5*boxes[:,3]
@@ -108,25 +108,20 @@ class YoloLoss(nn.Module):
         iou_2 = torch.diag(iou_2,0)
 
         N = box_target.size()[0]
-        #best_ious = torch.zeros((N,1))
-        #best_boxes = torch.zeros((N,5))    # YOU SHOULDNT CREATE A NEW TENSOR FOR TENSORS THAT CARRY GRADIENT, THAT MESSES UP THE GRADIENT #
+
         best_ious = []
         best_boxes = []
-
-
-
 
         for i in range(N):
             if iou_1[i] > iou_2[i]:
                 best_ious.append(iou_1[i])
-                best_boxes.append(box_pred_01[i])
-            else:
+                best_boxes.append(box_pred_01[i])  
+            else:                                     
                 best_ious.append(iou_2[i])
                 best_boxes.append(box_pred_02[i]) 
-
+                
         best_ious = torch.stack(best_ious).detach()#.cuda()
         best_boxes = torch.stack(best_boxes)#.cuda()
-
         return best_ious, best_boxes
 
     def get_class_prediction_loss(self, classes_pred, classes_target, has_object_map):
@@ -162,16 +157,13 @@ class YoloLoss(nn.Module):
         # Your code here
         no_object_map = ~has_object_map   
 
-        #print('has_object_map shape = ', has_object_map.size())
         S = has_object_map.size()[1]
 
         no_object_pred_boxes_list = []
-        temp1 = (pred_boxes_list[0][no_object_map]).view(-1,5)
-        temp2 = (pred_boxes_list[1][no_object_map]).view(-1,5)
+        temp1 = (pred_boxes_list[0][no_object_map])#.view(-1,5)
+        temp2 = (pred_boxes_list[1][no_object_map])#.view(-1,5)
         no_object_pred_boxes_list.append(temp1)
         no_object_pred_boxes_list.append(temp2)
-
-        #print('no_object_map shape = ', no_object_map.size())
 
         N = temp1.size()[0]
         M = temp1.size()[1]
@@ -179,32 +171,10 @@ class YoloLoss(nn.Module):
         C = temp2.size()[0]
         D = temp2.size()[1]
 
-        # print('temp1 size = ',temp1.size())
-        # print('temp2 size = ',temp2.size())
-
-        # zeros1 = torch.zeros((N,M)).cuda()
-        # zeros2 = torch.zeros((C,D)).cuda()
-
-        # print('zeros1 size = ',zeros1.size())
-        # print('zeros2 size = ',zeros2.size())
-
-
-        # loss1 = F.mse_loss(temp1, zeros1, reduction='sum').cuda()
-        # loss2 = F.mse_loss(temp2, zeros2, reduction='sum').cuda()
-
         loss1 = torch.sum(torch.square(temp1[:,4]))
         loss2 = torch.sum(torch.square(temp2[:,4]))
 
         loss = loss1+loss2
-
-        # loss = 0
-
-        # for i in range(N):
-        #     #loss += (no_object_pred_boxes_list[0][i, :, :, 4])**2 
-        #     loss += (no_object_pred_boxes_list[0][i,4])**2    
-        # for c in range(C):
-        #     #loss += (no_object_pred_boxes_list[1][c, :, :, 4])**2
-        #     loss += (no_object_pred_boxes_list[1][c,4])**2
 
         return loss
 
@@ -286,11 +256,11 @@ class YoloLoss(nn.Module):
         # Re-shape boxes in pred_boxes_list and target_boxes to meet the following desires
         # 1) only keep having-object cells
         # 2) vectorize all dimensions except for the last one for faster computation
-        has_object_target_boxes = (target_boxes[has_object_map]).view(-1,4)
+        has_object_target_boxes = (target_boxes[has_object_map])#.view(-1,4)
         
         has_object_pred_boxes_list = []
-        temp1 = (pred_boxes_list[0][has_object_map]).view(-1,5)      
-        temp2 = (pred_boxes_list[1][has_object_map]).view(-1,5)
+        temp1 = (pred_boxes_list[0][has_object_map])#.view(-1,5)      
+        temp2 = (pred_boxes_list[1][has_object_map])#.view(-1,5)
         has_object_pred_boxes_list.append(temp1)
         has_object_pred_boxes_list.append(temp2)
 
@@ -301,10 +271,9 @@ class YoloLoss(nn.Module):
         reg_loss = self.get_regression_loss(best_boxes, has_object_target_boxes)
 
         # compute contain_object_loss
-        box_pred_conf = best_boxes[:,4].view(-1,1) 
+        box_pred_conf = best_boxes[:,4]#.view(-1,1) 
 
-        #n = has_object_target_boxes.size()[0]
-        box_target_conf = best_ious.view(-1,1)   
+        box_target_conf = best_ious#.view(-1,1)   
 
         cont_obj_loss = self.get_contain_conf_loss(box_pred_conf,box_target_conf)#.cuda()
         
@@ -337,5 +306,6 @@ def test():
     loss = yl(pred_tensor, target_box, target_cls, obj_map)
     loss["total_loss"].backward()
     print(pred_tensor.grad)
+    print(loss)
 
-# test()
+test()

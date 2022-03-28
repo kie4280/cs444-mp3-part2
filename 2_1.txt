@@ -42,4 +42,4 @@ tensor([[[[ 0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  1.3408, -0.0991,
             0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
             0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,  0.0000,
             0.0000,  0.0000]]]])
-{'total_loss': tensor(14.6698, grad_fn=<AddBackward0>), 'reg_loss': tensor(0.1792, grad_fn=<AddBackward0>), 'containing_obj_loss': tensor(0.1642, grad_fn=<SumBackward0>), 'no_obj_loss': tensor(4.2586, grad_fn=<AddBackward0>), 'cls_loss': tensor(11.4800, grad_fn=<SumBackward0>)}
+{'total_loss': tensor(14.6698, grad_fn=<AddBackward0>), 'reg_loss': tensor(0.1792, grad_fn=<AddBackward0>), 'containing_obj_loss': tensor(0.1642, grad_fn=<MseLossBackward0>), 'no_obj_loss': tensor(4.2586, grad_fn=<AddBackward0>), 'cls_loss': tensor(11.4800, grad_fn=<MseLossBackward0>)}

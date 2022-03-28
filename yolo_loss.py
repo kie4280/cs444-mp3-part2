@@ -72,63 +72,7 @@ class YoloLoss(nn.Module):
 
         return boxes_
 
-    def find_best_iou_boxes(self, pred_box_list, box_target):
-        """
-        Parameters:
-        box_pred_list : [(tensor) size (-1, 4) ...]
-        box_target : (tensor)  size (-1, 5)
-
-        Returns:
-        best_iou: (tensor) size (-1, 1)
-        best_boxes : (tensor) size (-1, 5), containing the boxes which give the best iou among the two (self.B) predictions
-
-        Hints:
-        1) Find the iou's of each of the 2 bounding boxes of each grid cell of each image.
-        2) For finding iou's use the compute_iou function
-        3) use xywh2xyxy to convert bbox format if necessary,
-        Note: Over here initially x, y are the center of the box and w,h are width and height.
-        We perform this transformation to convert the correct coordinates into bounding box coordinates.
-        """
-
-        ### CODE ###
-        # Your code here
-        box_target = self.xywh2xyxy(box_target)
-
-        box_pred_01 = pred_box_list[0]
-        box_pred_02 = pred_box_list[1]
-
-        box_pred_1 = self.xywh2xyxy(pred_box_list[0]) 
-        box_pred_2 = self.xywh2xyxy(pred_box_list[1])
-
-        iou_1 = compute_iou(box_target, box_pred_1[:,0:4])
-        iou_1 = torch.diag(iou_1,0)
-
-        iou_2 = compute_iou(box_target, box_pred_2[:,0:4])
-        iou_2 = torch.diag(iou_2,0)
-
-        N = box_target.size()[0]
-        #best_ious = torch.zeros((N,1))
-        #best_boxes = torch.zeros((N,5))    # YOU SHOULDNT CREATE A NEW TENSOR FOR TENSORS THAT CARRY GRADIENT, THAT MESSES UP THE GRADIENT #
-        best_ious = []
-        best_boxes = []
-
-
-
-
-        for i in range(N):
-            if iou_1[i] > iou_2[i]:
-                best_ious.append(iou_1[i])
-                best_boxes.append(box_pred_01[i])
-            else:
-                best_ious.append(iou_2[i])
-                best_boxes.append(box_pred_02[i]) 
-
-        best_ious = torch.stack(best_ious).detach()#.cuda()
-        best_boxes = torch.stack(best_boxes)#.cuda()
-
-        return best_ious, best_boxes
-
-    def find_best_iou_boxes1(self, pred_box_list: Tensor, box_target: Tensor) -> Tuple[Tensor, Tensor]:
+    def find_best_iou_boxes(self, pred_box_list: Tensor, box_target: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Parameters:
         box_pred_list : [(tensor) size (-1, 5) ...]
@@ -152,20 +96,21 @@ class YoloLoss(nn.Module):
         box_pred = torch.stack(pred_box_list, 2)
         ious = torch.zeros(size=(box_target.size(0), self.B)).to(device=self.device)
         # print(target[0])
+        # print("box list", pred_box_list)
+
         # print("box pred:", box_pred)
         # print(box_target.size())
         for i in range(self.B):            
             d = compute_iou(self.xywh2xyxy(
                 box_pred[:, :4, i]), self.xywh2xyxy(box_target))
-            ious[:, i] = torch.diagonal(d)
+            ious[:, i] = d[:,0]
         # print("ious:", ious)
         ious.detach_()
         best_iou, argmax = torch.max(ious, dim=1)
         best_bbox = torch.gather(
             box_pred, 2, argmax[:, None, None].expand(-1, 5, 1))
-        # print(best_bbox)
-        # best_iou.detach_()
-        return best_iou, best_bbox.unsqueeze(2)
+        # print("best bbox", best_bbox.squeeze(2))
+        return best_iou, best_bbox.squeeze(2)
 
     def get_class_prediction_loss(self, classes_pred: Tensor, classes_target: Tensor, has_object_map: Tensor) -> float:
         """
@@ -306,19 +251,11 @@ class YoloLoss(nn.Module):
         reg_loss = self.get_regression_loss(
             best_pred_bbox[:, :4], target_boxes)
         # compute contain_object_loss
-        # print(best_pred_bbox.size(), best_pred_ious.size())
         cont_obj_loss = self.get_contain_conf_loss(
             best_pred_bbox[:, 4], best_pred_ious)
         # compute final loss
         total_loss = self.l_coord * reg_loss + self.l_noobj * \
             no_obj_loss + cont_obj_loss + cls_loss
-
-        # get batch mean loss
-        # reg_loss /= N
-        # no_obj_loss /= N
-        # cont_obj_loss /= N
-        # cls_loss /= N
-        # total_loss /= N
 
         # construct return loss_dict
         loss_dict = dict(
@@ -346,6 +283,7 @@ def test():
     loss = yl(pred_tensor, target_box, target_cls, obj_map)
     loss["total_loss"].backward()
     print(pred_tensor.grad)
+    print(loss)
 
 
-test()
+# test()
