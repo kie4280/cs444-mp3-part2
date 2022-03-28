@@ -102,9 +102,9 @@ class YoloLoss(nn.Module):
         # print("box pred:", box_pred)
         # print(box_target.size())
         for i in range(self.B):
-            d = compute_iou(self.xywh2xyxy(box_target), self.xywh2xyxy(
+            d = compute_iou( self.xywh2xyxy(box_target), self.xywh2xyxy(
                 box_pred[:, :4, i]))
-            ious[:, i] = d[:, 0]
+            ious[:, i] = torch.diagonal(d)
         # print("ious:", ious)
         ious.detach_()
         best_iou, argmax = torch.max(ious, dim=1)
